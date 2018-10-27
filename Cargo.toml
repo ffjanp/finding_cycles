@@ -1,0 +1,6 @@
+[package]
+name = "finding_cycles"
+version = "0.1.0"
+authors = ["JanPel <jan.pel@futurefacts.nl>"]
+
+[dependencies]
