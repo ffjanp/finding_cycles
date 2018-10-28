@@ -3,6 +3,8 @@ use std::io::{BufRead, BufReader, Error, ErrorKind, Read,Write};
 use std::collections::HashMap;
 use std::io::prelude::*;
 use std::env;
+use std::thread;
+
 
 fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Error> {
     let mut v = vec![];
@@ -33,7 +35,8 @@ fn remove_edges(mut graph:&mut HashMap<usize,Vec<usize>>,node : usize) {
         }
     }
     graph.remove(&node);    
-} fn find_cycles(mut graph:&mut HashMap<usize,Vec<usize>>,startnode : usize,n:usize)   {
+} 
+fn find_cycles(mut graph:&mut HashMap<usize,Vec<usize>>,startnode : usize,n:usize)   {
     let mut path = vec![startnode];
     let mut stack = vec![(startnode,graph[&startnode].to_vec())];
     let mut nextnode :usize = 0;
@@ -61,13 +64,10 @@ fn remove_edges(mut graph:&mut HashMap<usize,Vec<usize>>,node : usize) {
     } 
 }
 
-fn main() {
+fn cycle_worker(this_worker: usize,total_workers:usize) {
     // READING THE COMMAND LINE ARGUMENTS 
     let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-    let args: Vec<String> = env::args().collect();
-    println!("{:?}", args);
-    let filename = args[1].to_string();
+    let filename = args[1].clone();
     let length :usize = args[2].parse().unwrap();
     let begin :usize = args[3].parse().unwrap();
     let end :usize = args[4].parse().unwrap();
@@ -97,9 +97,27 @@ fn main() {
     }
     // HERE ALL THE CYCLES OF LENGTH "length" STARTING AT THE NODES begin..end ARE FOUND AND 
     // PRINTED TO STANDARD OUT.
+    let mut i = 1;
     for &n in &nodes[begin..end] {
-        find_cycles(&mut graph,n,length);
+        if i % total_workers == this_worker { 
+            find_cycles(&mut graph,n,length);
+        }
+        i = i + 1;
         remove_edges(&mut graph, n);
     } 
 
 }
+
+fn main() {
+    let n_workers = 4;
+    let mut handles = vec![];
+    for i in 0..n_workers {
+        let handle = thread::spawn(move|| {
+            cycle_worker(i,n_workers);
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+} 
