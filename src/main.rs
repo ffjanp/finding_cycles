@@ -64,7 +64,9 @@ fn remove_edges(mut graph:&mut HashMap<usize,Vec<usize>>,node : usize) {
 fn main() {
     // READING THE COMMAND LINE ARGUMENTS 
     let args: Vec<String> = env::args().collect();
-    println!("{:?}",args);
+    println!("{:?}", args);
+    let args: Vec<String> = env::args().collect();
+    println!("{:?}", args);
     let filename = args[1].to_string();
     let length :usize = args[2].parse().unwrap();
     let begin :usize = args[3].parse().unwrap();
@@ -96,7 +98,6 @@ fn main() {
     // HERE ALL THE CYCLES OF LENGTH "length" STARTING AT THE NODES begin..end ARE FOUND AND 
     // PRINTED TO STANDARD OUT.
     for &n in &nodes[begin..end] {
-        println!("{}",n);
         find_cycles(&mut graph,n,length);
         remove_edges(&mut graph, n);
     } 
