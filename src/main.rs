@@ -9,8 +9,7 @@ fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Erro
     let mut v = vec![];
     for _ in 0..m {
     let mut line = String::new();
-        io.read_line(&mut line)?;
-        let n: usize = line.trim().parse::<usize>().unwrap(); v.push(n);
+        io.read_line(&mut line)?; let n: usize = line.trim().parse::<usize>().unwrap(); v.push(n);
     }
     Ok(v)
 }
@@ -43,7 +42,7 @@ fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode
             let nextnode = stack[l - 1].1.pop().unwrap();
             if nextnode == startnode {
 //                out.write("{:?}",path);
-                write!(file, "{:?} \n",path).unwrap();
+                write!(file, "{:?}\n",path).unwrap();
             }
             else if !(path.contains(&nextnode)) && path.len() < n {
                 path.push(nextnode);
@@ -61,20 +60,14 @@ fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode
     } 
 }
 
-fn cycle_worker(this_worker: usize,total_workers:usize) {
-    // READING THE COMMAND LINE ARGUMENTS 
+fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<Vec<usize>>) {
+     // READING THE COMMAND LINE ARGUMENTS 
     let args: Vec<String> = env::args().collect();
-    let filename = args[1].clone();
     let length :usize = args[2].parse().unwrap();
     let begin :usize = args[3].parse().unwrap();
     let end :usize = args[4].parse().unwrap();
-    let mut f = BufReader::new(File::open(filename).expect("file not found"));
 
-    // READING THE GRAPH FILE
-    let graph_properties = read_number(&mut f,2).unwrap();
-    let mut nodes = read_number(&mut f,graph_properties[0]).unwrap();
-    let edges = read_edges(&mut f,graph_properties[1]).unwrap();
-    
+   
     //MAKING THE GRAPH, PER NODE THE EDGES OUT ARE STORED in  a sorted list
     let mut graph: HashMap<usize,Vec<usize>> = HashMap::new();
     for &node in &nodes {
@@ -86,7 +79,6 @@ fn cycle_worker(this_worker: usize,total_workers:usize) {
     for (_,likes) in &mut graph {
         likes.sort_unstable();
     }
-    nodes.reverse();
 
     // HERE THE NODES AND EDGES ARE REMOVED WHICH ARE SKIPPED
     for &n in &nodes[0..begin] {
@@ -107,11 +99,25 @@ fn cycle_worker(this_worker: usize,total_workers:usize) {
 }
 
 fn main() {
-    let n_workers = 1;
+     // READING THE COMMAND LINE ARGUMENTS 
+    let args: Vec<String> = env::args().collect();
+    let filename = args[1].clone();
+    let n_workers :usize = args[5].parse().unwrap();
+    let mut f = BufReader::new(File::open(filename).expect("file not found"));
+
+    // READING THE GRAPH FILE
+    let graph_properties = read_number(&mut f,2).unwrap();
+    let mut nodes = read_number(&mut f,graph_properties[0]).unwrap();
+    let edges = read_edges(&mut f,graph_properties[1]).unwrap();
+    nodes.reverse();
+ 
+    // HERE WORK IS DELEGATED TO THE WORKERS
     let mut handles = vec![];
     for i in 0..n_workers {
+        let nodes_temp = nodes.clone();
+        let edges_temp = edges.clone();
         let handle = thread::spawn(move|| {
-            cycle_worker(i,n_workers);
+            cycle_worker(i,n_workers,nodes_temp ,edges_temp);
         });
         handles.push(handle);
     }
