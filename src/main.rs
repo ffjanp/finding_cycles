@@ -42,7 +42,7 @@ fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode
             let nextnode = stack[l - 1].1.pop().unwrap();
             if nextnode == startnode {
 //                out.write("{:?}",path);
-                write!(file, "{:?}\n",path).unwrap();
+                println!("{:?}",path);
             }
             else if !(path.contains(&nextnode)) && path.len() < n {
                 path.push(nextnode);
