@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{ BufReader,Error, BufWriter,stdout};
+use std::io::{ BufReader,Error, BufWriter,stdout,stdin};
 use std::collections::HashMap;
 use std::env;
 use std::thread;
@@ -63,9 +63,7 @@ fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode
 fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<Vec<usize>>) {
      // READING THE COMMAND LINE ARGUMENTS 
     let args: Vec<String> = env::args().collect();
-    let length :usize = args[2].parse().unwrap();
-    let begin :usize = args[3].parse().unwrap();
-    let end :usize = args[4].parse().unwrap();
+    let length :usize = args[1].parse().unwrap();
 
    
     //MAKING THE GRAPH, PER NODE THE EDGES OUT ARE STORED in  a sorted list
@@ -81,14 +79,14 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
     }
 
     // HERE THE NODES AND EDGES ARE REMOVED WHICH ARE SKIPPED
-    for &n in &nodes[0..begin] {
-        remove_edges(&mut graph,n);
-    }
+    //for &n in &nodes[0..begin] {
+    //    remove_edges(&mut graph,n);
+    //}
     // HERE ALL THE CYCLES OF LENGTH "length" STARTING AT THE NODES begin..end ARE FOUND AND 
     // PRINTED TO STANDARD OUT.
     let mut file = BufWriter::new(stdout()); 
     let mut i = 1;
-    for &n in &nodes[begin..end] {
+    for &n in &nodes {
         if i % total_workers == this_worker { 
             find_cycles(&mut graph,n,length,&mut file);
         }
@@ -101,9 +99,9 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
 fn main() {
      // READING THE COMMAND LINE ARGUMENTS 
     let args: Vec<String> = env::args().collect();
-    let filename = args[1].clone();
-    let n_workers :usize = args[5].parse().unwrap();
-    let mut f = BufReader::new(File::open(filename).expect("file not found"));
+    let n_workers :usize = args[2].parse().unwrap();
+    //let mut f = BufReader::new(File::open(filename).expect("file not found"));
+    let mut f = BufReader::new(stdin());
 
     // READING THE GRAPH FILE
     let graph_properties = read_number(&mut f,2).unwrap();
