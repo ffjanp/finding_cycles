@@ -6,12 +6,12 @@ use std::thread;
 
 
 fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Error> {
-    let mut v = vec![];
-    for _ in 0..m {
+    let mut v = vec![]; for _ in 0..m {
         let mut line = String::new();
         io.read_line(&mut line)?; 
         let n: usize = line.trim().parse::<usize>().unwrap(); 
         v.push(n);
+        v.sort_unstable();
     }
     Ok(v)
 }
@@ -35,16 +35,18 @@ fn remove_edges(graph:&mut HashMap<usize,Vec<usize>>,node : usize) {
     }
     graph.remove(&node);    
 } 
-fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode : usize,n:usize,file:&mut W)   {
+fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode : usize,n:usize,file:&mut W) -> Vec<Vec<usize>>  {
     let mut path = vec![startnode];
     let mut stack = vec![(startnode,graph[&startnode].to_vec())];
+    let mut cycles = vec![];
     while stack.len() > 0 {
         let l = stack.len();
         if stack[l - 1].1.len() > 0 {
             let nextnode = stack[l - 1].1.pop().unwrap();
             if nextnode == startnode {
 //                out.write("{:?}",path);
-                println!("{:?}",path);
+//                println!("{:?}",path);
+                cycles.push(path.to_vec());
             }
             else if !(path.contains(&nextnode)) && path.len() < n {
                 path.push(nextnode);
@@ -60,7 +62,19 @@ fn find_cycles<W: std::io::Write>(graph:&mut HashMap<usize,Vec<usize>>,startnode
             path.pop();
         }
     } 
+    cycles
 }
+
+fn make_subgraph(graph: &HashMap<usize,Vec<usize>>, cycle: &Vec<usize>) -> HashMap<usize,Vec<usize>> {
+    let mut subgraph: HashMap<usize,Vec<usize>> = HashMap::new();
+    for &node in cycle {
+        subgraph.insert(node,graph[&node].iter().filter(|x| cycle.contains(x)).map(|&x| x).collect());
+    }
+    subgraph
+}
+
+
+
 
 fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<Vec<usize>>) {
      // READING THE COMMAND LINE ARGUMENTS 
@@ -90,7 +104,8 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
     let mut i = 1;
     for &n in &nodes {
         if i % total_workers == this_worker { 
-            find_cycles(&mut graph,n,length,&mut file);
+            let subgraphs:Vec<HashMap<usize,Vec<usize>>> = find_cycles(&mut graph,n,length,&mut file).iter().map(|cycle| make_subgraph(&graph,cycle)).collect();
+            println!("{:?}",cycles);
         }
         i = i + 1;
         remove_edges(&mut graph, n);
