@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["JanPel <jan.pel@futurefacts.nl>"]
 
 [dependencies]
+rand = "0.6.3"
+rand_xoshiro = "0.1.0"
