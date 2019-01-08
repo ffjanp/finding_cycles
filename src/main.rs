@@ -8,8 +8,10 @@ use std::thread;
 fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Error> {
     let mut v = vec![];
     for _ in 0..m {
-    let mut line = String::new();
-        io.read_line(&mut line)?; let n: usize = line.trim().parse::<usize>().unwrap(); v.push(n);
+        let mut line = String::new();
+        io.read_line(&mut line)?; 
+        let n: usize = line.trim().parse::<usize>().unwrap(); 
+        v.push(n);
     }
     Ok(v)
 }
