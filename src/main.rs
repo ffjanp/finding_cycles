@@ -1,16 +1,16 @@
 extern crate rand;
 extern crate rand_xoshiro;
-use std::fs::File;
+extern crate clap;
 use std::io::{ BufReader,Error, BufWriter,stdout,stdin};
 use std::collections::HashMap;
-use std::iter::Sum;
 use std::env;
 use std::thread;
 use std::cmp;
 use rand::Rng;
 use rand::SeedableRng;
 use rand_xoshiro::Xoroshiro128StarStar;
-use rand::distributions::{Distribution, Standard};
+use rand::distributions::Standard;
+use clap::{Arg, App, SubCommand};
 
 fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Error> {
     let mut v = vec![]; for _ in 0..m {
@@ -100,7 +100,7 @@ fn random_remove_edges<T: Rng>(graph :&HashMap<usize,Vec<usize>>, weights: &Hash
 }
 fn monte_carlo<T: Rng>(graph :&HashMap<usize,Vec<usize>>,weights: &HashMap<(usize,usize),f32>,mut random:&mut T,iterations: usize) -> f32 {
     let mut results : Vec<usize> = vec![];
-    for i in 0..iterations {
+    for _ in 0..iterations {
         let new_graph = random_remove_edges(&graph , &weights, &mut random);
 //        println!("----------------- here is removed graph");
 //        println!("{:?}",new_graph);
@@ -118,10 +118,7 @@ fn monte_carlo<T: Rng>(graph :&HashMap<usize,Vec<usize>>,weights: &HashMap<(usiz
 
 
 
-fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<(Vec<usize>,Vec<f32>)>) {
-     // READING THE COMMAND LINE ARGUMENTS 
-    let args: Vec<String> = env::args().collect();
-    let length :usize = args[1].parse().unwrap();
+fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<(Vec<usize>,Vec<f32>)>,length:usize,mc_tests:usize) {
 
    
     //MAKING THE GRAPHS, PER NODE THE EDGES OUT ARE STORED in  a sorted list
@@ -146,7 +143,6 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
     //}
     // HERE ALL THE CYCLES OF LENGTH "length" STARTING AT THE NODES begin..end ARE FOUND AND 
     // PRINTED TO STANDARD OUT.
-    let mut file = BufWriter::new(stdout()); 
     let mut i = 1;
     for &n in &nodes {
         if i % total_workers == this_worker { 
@@ -154,7 +150,7 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
             //println!("{:?}",subgraphs);
             for subgraph in subgraphs.iter() {
                 let nodes : Vec<usize> = subgraph.keys().map(|&x| x).collect();
-                println!("{:?} ; {}",nodes,monte_carlo(&subgraph,&weights,&mut rng,100));
+                println!("{:?} ; {}",nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
             }
         }
         i = i + 1;
@@ -164,10 +160,38 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
 }
 
 fn main() {
-     // READING THE COMMAND LINE ARGUMENTS 
-    let args: Vec<String> = env::args().collect();
-    let n_workers :usize = args[2].parse().unwrap();
-    //let mut f = BufReader::new(File::open(filename).expect("file not found"));
+    // READING THE COMMAND LINE ARGUMENTS USING CLAP
+    let matches = App::new("Cycle Finder Program")
+                      .version("0.1")
+                      .author("Jan Pel")
+                      .about("Finds Cycles in weighted graph, also rates them")
+                      .arg(Arg::with_name("cycles")
+                           .short("c")
+                           .long("cycles")
+                           .help("Sets a custom config file")
+                           .required(true)
+                           .takes_value(true))
+                      .arg(Arg::with_name("threads")
+                           .short("t")
+                           .help("sets the number of threads to use")
+                           .takes_value(true))
+                      .arg(Arg::with_name("montecarlo")
+                           .short("mc")
+                           .help("sets number of montecarlo simulations to run per cycle")
+                           .takes_value(true))
+                      .subcommand(SubCommand::with_name("test")
+                                  .about("controls testing features")
+                                  .version("1.3")
+                                  .author("Someone E. <someone_else@other.com>")
+                                  .arg(Arg::with_name("debug")
+                                      .short("d")
+                                      .help("print debug information verbosely")))
+                          .get_matches();
+    let n_workers :usize = matches.value_of("threads").unwrap_or("1").parse().unwrap();
+    let number_mc_tests :usize = matches.value_of("montecarlo").unwrap_or("0").parse().unwrap(); 
+    let max_cycle :usize = matches.value_of("cycles").unwrap().parse().unwrap();
+    
+    // The Bufreader is used to read in the graph, by being passed along to the reading functions
     let mut f = BufReader::new(stdin());
 
     // READING THE GRAPH FILE
@@ -182,10 +206,11 @@ fn main() {
         let nodes_temp = nodes.clone();
         let edges_temp = edges.clone();
         let handle = thread::spawn(move|| {
-            cycle_worker(i,n_workers,nodes_temp ,edges_temp);
+            cycle_worker(i,n_workers,nodes_temp ,edges_temp,max_cycle,number_mc_tests);
         });
         handles.push(handle);
     }
+    // here we wait for all the threads to finish
     for handle in handles {
         handle.join().unwrap();
     }
