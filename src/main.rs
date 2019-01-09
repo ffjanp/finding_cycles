@@ -154,7 +154,7 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
             //println!("{:?}",subgraphs);
             for subgraph in subgraphs.iter() {
                 let nodes : Vec<usize> = subgraph.keys().map(|&x| x).collect();
-                println!("{:?} ; {}",nodes,monte_carlo(&subgraph,&weights,&mut rng,1000));
+                println!("{:?} ; {}",nodes,monte_carlo(&subgraph,&weights,&mut rng,100));
             }
         }
         i = i + 1;
