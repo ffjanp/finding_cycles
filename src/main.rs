@@ -1,9 +1,8 @@
 extern crate rand;
 extern crate rand_xoshiro;
 extern crate clap;
-use std::io::{ BufReader,Error, BufWriter,stdout,stdin};
+use std::io::{ BufReader,Error, stdin};
 use std::collections::HashMap;
-use std::env;
 use std::thread;
 use std::cmp;
 use rand::Rng;
@@ -168,21 +167,24 @@ fn monte_carlo<T: Rng>(graph :&DiGraph,weights: &HashMap<(usize,usize),f32>,mut 
 fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<(Vec<usize>,Vec<f32>)>,length:usize,mc_tests:usize) {
     //MAKING THE GRAPHS, PER NODE THE EDGES OUT ARE STORED in  a sorted list
     let mut graph = DiGraph::new(nodes.clone(),&edges);
-    let mut weights = store_weights(&edges);
+    let weights = store_weights(&edges);
 
     // Random Number generation
     let mut rng = Xoroshiro128StarStar::seed_from_u64(0); 
     // Below we iterate over all the nodes, for every node we find the cycles starting at that
     // node, after which we delete the node from the graph. 
     let mut i = 1;
-    for &n in &nodes {
+    for _ in &nodes {
         if i % total_workers == this_worker { 
-            let subgraphs: Vec<DiGraph> = graph.find_cycles(length).iter().map(|cycle| graph.make_subgraph(cycle.to_vec())).collect();
+            let subgraphs: Vec<(Vec<usize>,DiGraph)> = graph.find_cycles(length).iter().map(|cycle| (cycle.to_vec(),graph.make_subgraph(cycle.to_vec()))).collect();
             //println!("{:?}",subgraphs);
-            for subgraph in subgraphs.iter() {
+            let mut to_print = String::new();
+            for (cycle,subgraph) in subgraphs.into_iter() {
                 //let nodes : Vec<usize> = subgraph.nodes;
-                println!("{:?} ; {}",subgraph.nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
+                //println!("{:?} ; {}",subgraph.nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
+                to_print.push_str(&format!("{:?} ; {} \n",cycle,monte_carlo(&subgraph,&weights,&mut rng,mc_tests)));
             }
+            if !to_print.is_empty() {print!("{}",to_print)}
         }
         i = i + 1;
         graph.remove_node();
@@ -229,7 +231,7 @@ fn main() {
     // READING THE GRAPH FILE
     let graph_properties = read_number(&mut f,2).unwrap();
     let mut nodes = read_number(&mut f,graph_properties[0]).unwrap();
-    let mut edges = read_edges(&mut f,graph_properties[1]).unwrap();
+    let edges = read_edges(&mut f,graph_properties[1]).unwrap();
     nodes.reverse();
  
     // HERE WORK IS DELEGATED TO THE WORKERS
