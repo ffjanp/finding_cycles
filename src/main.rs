@@ -12,6 +12,85 @@ use rand_xoshiro::Xoroshiro128StarStar;
 use rand::distributions::Standard;
 use clap::{Arg, App, SubCommand};
 
+#[derive(Debug,Clone)]
+struct DiGraph {
+    nodes : Vec<usize>,
+    edges : HashMap<usize,Vec<usize>>
+}
+
+impl DiGraph {
+    fn new(mut nodes:Vec<usize>, edges:&Vec<(Vec<usize>,Vec<f32>)>) -> DiGraph {    
+        let mut graph: HashMap<usize,Vec<usize>> = HashMap::new();
+        for &node in &nodes { 
+            graph.insert(node,vec![]);
+        }
+        for edge in edges {
+            graph.entry(edge.0[0]).or_insert(vec![]).push(edge.0[1]);
+        }
+        for (_,likes) in &mut graph {
+        likes.sort_unstable();
+        }
+        nodes.sort_unstable();
+        DiGraph {
+            nodes : nodes,
+            edges : graph
+        }
+    }
+    fn remove_node(&mut self) {
+        let node = self.nodes.pop().unwrap();
+        for (_,likes) in self.edges.iter_mut() {
+            if likes.len() > 0 && likes[likes.len()-1] == node {
+                likes.pop();
+            }
+        }
+        self.edges.remove(&node);    
+    } 
+
+
+    fn make_subgraph(&mut self ,mut cycle: Vec<usize>) -> DiGraph {
+        let mut subedges: HashMap<usize,Vec<usize>> = HashMap::new();
+        for &node in &cycle {
+            subedges.insert(node,self.edges[&node].iter().filter(|x| cycle.contains(x)).map(|&x| x).collect());
+        }
+        cycle.sort_unstable();
+        DiGraph {
+            nodes : cycle,
+            edges : subedges
+        }
+    }
+    fn find_cycles(&self,n:usize) -> Vec<Vec<usize>>  {
+        let startnode = self.nodes.last().unwrap().clone();
+        let mut path = vec![startnode];
+        let mut stack = vec![(startnode,self.edges[&startnode].to_vec())];
+        let mut cycles = vec![];
+        while stack.len() > 0 {
+            let l = stack.len();
+            if stack[l - 1].1.len() > 0 {
+                let nextnode = stack[l - 1].1.pop().unwrap();
+                if nextnode == startnode {
+                    cycles.push(path.to_vec());
+                }
+                else if !(path.contains(&nextnode)) && path.len() < n {
+                    path.push(nextnode);
+                    stack.push((nextnode,self.edges[&nextnode].to_vec()));
+                }
+                else if l == n -1 {
+                    stack.pop();
+                    path.pop();
+                }
+            }
+            else if stack[l - 1].1.len() == 0 {
+                stack.pop();
+                path.pop();
+            }
+        } 
+        cycles
+    }
+
+
+}    
+
+
 fn read_number<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<usize>,Error> {
     let mut v = vec![]; for _ in 0..m {
         let mut line = String::new();
@@ -39,123 +118,76 @@ fn read_edges<R: std::io::BufRead>(io:&mut R,m:usize) -> Result<Vec<(Vec<usize>,
     Ok(v)
 }
 
-fn remove_edges(graph:&mut HashMap<usize,Vec<usize>>,node : usize) {
-    for (_,likes) in &mut graph.iter_mut() {
-        if likes.len() > 0 && likes[likes.len()-1] == node {
-            likes.pop();
-        }
+
+
+fn store_weights(edges :&Vec<(Vec<usize>,Vec<f32>)>) -> HashMap<(usize,usize),f32> {
+    let mut weights: HashMap<(usize,usize),f32> = HashMap::new();
+    for edge in edges {
+        weights.insert((edge.0[0],edge.0[1]),edge.1[0]);
     }
-    graph.remove(&node);    
-} 
-fn find_cycles (graph:&HashMap<usize,Vec<usize>>,startnode : usize,n:usize) -> Vec<Vec<usize>>  {
-    let mut path = vec![startnode];
-    let mut stack = vec![(startnode,graph[&startnode].to_vec())];
-    let mut cycles = vec![];
-    while stack.len() > 0 {
-        let l = stack.len();
-        if stack[l - 1].1.len() > 0 {
-            let nextnode = stack[l - 1].1.pop().unwrap();
-            if nextnode == startnode {
-//                out.write("{:?}",path);
-//                println!("{:?}",path);
-                cycles.push(path.to_vec());
-            }
-            else if !(path.contains(&nextnode)) && path.len() < n {
-                path.push(nextnode);
-                stack.push((nextnode,graph[&nextnode].to_vec()));
-            }
-            else if l == n -1 {
-                stack.pop();
-                path.pop();
-            }
-        }
-        else if stack[l - 1].1.len() == 0 {
-            stack.pop();
-            path.pop();
-        }
-    } 
-    cycles
+    weights
 }
 
-fn make_subgraph(graph: &HashMap<usize,Vec<usize>>, cycle: &Vec<usize>) -> HashMap<usize,Vec<usize>> {
-    let mut subgraph: HashMap<usize,Vec<usize>> = HashMap::new();
-    for &node in cycle {
-        subgraph.insert(node,graph[&node].iter().filter(|x| cycle.contains(x)).map(|&x| x).collect());
-    }
-    subgraph
-}
-fn random_remove_edges<T: Rng>(graph :&HashMap<usize,Vec<usize>>, weights: &HashMap<(usize,usize),f32>, random:&mut T) -> HashMap<usize,Vec<usize>> {
-    let mut new_graph: HashMap<usize,Vec<usize>> = HashMap::new();
-    for (&node,edges) in graph.iter() {
-        let mut new_edges :Vec<usize>= vec![];
+fn random_remove_edges<T: Rng>(graph :&DiGraph, weights: &HashMap<(usize,usize),f32>, random:&mut T) -> DiGraph {
+    let mut new_edges: HashMap<usize,Vec<usize>> = HashMap::new();
+    for (&node,edges) in graph.edges.iter() {
+        let mut new_edge :Vec<usize>= vec![];
         for &edge in edges.iter() {
             let value: f32 = random.sample(Standard);
             if value < weights[&(node,edge)] {
-                new_edges.push(edge);
+                new_edge.push(edge);
             }
-        new_graph.insert(node,new_edges.to_vec());
+        new_edges.insert(node,new_edge.to_vec());
         }
     }
-    new_graph
+    DiGraph {
+    nodes : graph.nodes.clone(),
+    edges : new_edges
+    }
 }
-fn monte_carlo<T: Rng>(graph :&HashMap<usize,Vec<usize>>,weights: &HashMap<(usize,usize),f32>,mut random:&mut T,iterations: usize) -> f32 {
+fn monte_carlo<T: Rng>(graph :&DiGraph,weights: &HashMap<(usize,usize),f32>,mut random:&mut T,iterations: usize) -> f32 {
     let mut results : Vec<usize> = vec![];
     for _ in 0..iterations {
         let new_graph = random_remove_edges(&graph , &weights, &mut random);
 //        println!("----------------- here is removed graph");
 //        println!("{:?}",new_graph);
-        let mut length: usize = new_graph.len();
+        let mut length: usize = new_graph.nodes.len();
         let mut max:usize= 0;
-        for &node in new_graph.keys() {
-            let new_max:usize = find_cycles(&new_graph,node,length).iter().map(|x| x.len()).max().unwrap_or(0);
+        for _ in &new_graph.nodes {
+            let new_max:usize = new_graph.find_cycles(length).iter().map(|x| x.len()).max().unwrap_or(0);
             max = cmp::max(max,new_max);
         }
         results.push(max); 
     }
     let result:usize = results.iter().sum();
-    (result as f32) / ((graph.len() * iterations) as f32)
+    (result as f32) / ((graph.nodes.len() * iterations) as f32)
 }
 
 
 
 fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<(Vec<usize>,Vec<f32>)>,length:usize,mc_tests:usize) {
-
-   
     //MAKING THE GRAPHS, PER NODE THE EDGES OUT ARE STORED in  a sorted list
-    let mut graph: HashMap<usize,Vec<usize>> = HashMap::new();
-    let mut weights: HashMap<(usize,usize),f32> = HashMap::new();
-    for &node in &nodes {
-        graph.insert(node,vec![]);
-    }
-    for edge in edges {
-        graph.entry(edge.0[0]).or_insert(vec![]).push(edge.0[1]);
-        weights.insert((edge.0[0],edge.0[1]),edge.1[0]);
-    }
-    for (_,likes) in &mut graph {
-        likes.sort_unstable();
-    }
+    let mut graph = DiGraph::new(nodes.clone(),&edges);
+    let mut weights = store_weights(&edges);
+
     // Random Number generation
     let mut rng = Xoroshiro128StarStar::seed_from_u64(0); 
- 
-    // HERE THE NODES AND EDGES ARE REMOVED WHICH ARE SKIPPED
-    //for &n in &nodes[0..begin] {
-    //    remove_edges(&mut graph,n);
-    //}
-    // HERE ALL THE CYCLES OF LENGTH "length" STARTING AT THE NODES begin..end ARE FOUND AND 
-    // PRINTED TO STANDARD OUT.
+    // Below we iterate over all the nodes, for every node we find the cycles starting at that
+    // node, after which we delete the node from the graph. 
     let mut i = 1;
     for &n in &nodes {
         if i % total_workers == this_worker { 
-            let subgraphs:Vec<HashMap<usize,Vec<usize>>> = find_cycles(&graph,n,length).iter().map(|cycle| make_subgraph(&graph,cycle)).collect();
+            let subgraphs: Vec<DiGraph> = graph.find_cycles(length).iter().map(|cycle| graph.make_subgraph(cycle.to_vec())).collect();
             //println!("{:?}",subgraphs);
             for subgraph in subgraphs.iter() {
-                let nodes : Vec<usize> = subgraph.keys().map(|&x| x).collect();
-                println!("{:?} ; {}",nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
+                //let nodes : Vec<usize> = subgraph.nodes;
+                println!("{:?} ; {}",subgraph.nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
             }
         }
         i = i + 1;
-        remove_edges(&mut graph, n);
+        graph.remove_node();
     } 
+    println!("{:?}",graph);
 
 }
 
@@ -197,7 +229,7 @@ fn main() {
     // READING THE GRAPH FILE
     let graph_properties = read_number(&mut f,2).unwrap();
     let mut nodes = read_number(&mut f,graph_properties[0]).unwrap();
-    let edges = read_edges(&mut f,graph_properties[1]).unwrap();
+    let mut edges = read_edges(&mut f,graph_properties[1]).unwrap();
     nodes.reverse();
  
     // HERE WORK IS DELEGATED TO THE WORKERS
