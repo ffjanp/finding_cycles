@@ -189,8 +189,6 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
         i = i + 1;
         graph.remove_node();
     } 
-    println!("{:?}",graph);
-
 }
 
 fn main() {
