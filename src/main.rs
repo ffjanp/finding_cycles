@@ -162,6 +162,15 @@ fn monte_carlo<T: Rng>(graph :&DiGraph,weights: &HashMap<(usize,usize),f32>,mut 
     (result as f32) / ((graph.nodes.len() * iterations) as f32)
 }
 
+fn calculate_chance(cycle :&Vec<usize>, weights : &HashMap<(usize,usize),f32>) -> f32 {
+    let length = cycle.len();
+    let mut product = 1.0;
+    for i in 0..(length) {
+        product *= weights[&(cycle[i],cycle[(i+1)%length])];
+    }
+    product 
+}
+
 
 
 fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: Vec<(Vec<usize>,Vec<f32>)>,length:usize,mc_tests:usize) {
@@ -182,7 +191,7 @@ fn cycle_worker(this_worker: usize,total_workers:usize,nodes:Vec<usize>,edges: V
             for (cycle,subgraph) in subgraphs.into_iter() {
                 //let nodes : Vec<usize> = subgraph.nodes;
                 //println!("{:?} ; {}",subgraph.nodes,monte_carlo(&subgraph,&weights,&mut rng,mc_tests));
-                to_print.push_str(&format!("{:?} ; {} \n",cycle,monte_carlo(&subgraph,&weights,&mut rng,mc_tests)));
+                to_print.push_str(&format!("{:?} ; {} ; {} \n",cycle,monte_carlo(&subgraph,&weights,&mut rng,mc_tests),calculate_chance(&cycle,&weights)));
             }
             if !to_print.is_empty() {print!("{}",to_print)}
         }
